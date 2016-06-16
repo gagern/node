@@ -28,6 +28,19 @@ test(
   '\u02e4\u0064\u12e4\u0030\u3045'
 );
 
+function testBits(bits, expected, singleSequence) {
+  let buf = Buffer.from(bits.split(' ').map(b => parseInt(b, 2)));
+  let exp = buf.toString('utf-8');
+  if (expected) assert.strictEqual(exp, expected);
+  test('utf-8', buf, exp, singleSequence);
+}
+testBits('10111000 01000001', '\ufffdA');
+//fails: testBits('11101100 01000001', '\ufffdA');
+testBits('11101100 10111000 01000001', '\ufffd\ufffdA'); // why two U+FFFD?
+testBits('11000001 10000001 01000001', '\ufffd\ufffdA');
+test('utf-8', Buffer.from('F09D908D', 'hex'), '\ud835\udc0d');
+//CESU-8 not supported: test('utf-8', Buffer.from('EDA0B5EDB08D', 'hex'), '\ud835\udc0d');
+
 // UCS-2
 test('ucs2', Buffer.from('ababc', 'ucs2'), 'ababc');
 
@@ -98,6 +111,7 @@ function test(encoding, input, expected, singleSequence) {
     sequence.forEach(function(write) {
       output += decoder.write(input.slice(write[0], write[1]));
     });
+    output += decoder.end();
     process.stdout.write('.');
     if (output !== expected) {
       var message =
