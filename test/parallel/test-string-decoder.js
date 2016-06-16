@@ -41,6 +41,46 @@ testBits('11000001 10000001 01000001', '\ufffd\ufffdA');
 test('utf-8', Buffer.from('F09D908D', 'hex'), '\ud835\udc0d');
 //CESU-8 not supported: test('utf-8', Buffer.from('EDA0B5EDB08D', 'hex'), '\ud835\udc0d');
 
+// 0x00: |00000000 ASCII
+// 0x41: |01000001 ASCII
+// 0xb8: 10|111000 continuation
+// 0xcc: 110|01100 two-byte head
+// 0xe2: 1110|0010 three-byte head
+// 0xf0: 11110|000 four-byte head
+// 0xf1: 11110|001'another four-byte head
+// 0xfb: 111110|11 "five-byte head", not UTF-8
+const alphabet = [0x00, 0x41, 0xb8, 0xcc, 0xe2, 0xf0, 0xf1, 0xfb];
+const knownToFail = [
+  /(e2|f0|f1)(00|41)/i,
+  /ccccb8/i,
+  /f[01](b8|cc)(00|41)/i,
+  /f[01]ccb8/i,
+  /f[01]fb(00|41)/i,
+  /(cc|e2)e2b8b8/i,
+  /e2(b8|e2)ccb8/i,
+  /e2fbcc(01|b8)/i,
+];
+function recurse(len, bytes) {
+  if (len === 0) {
+    let buf = Buffer.from(bytes);
+    let h = buf.toString('hex');
+    if (!knownToFail.some(t => t.test(h))) {
+      let d = new StringDecoder('utf-8');
+      let exp = d.end(buf);
+      test('utf-8', buf, exp);
+    }
+  } else {
+    alphabet.forEach(b => {
+      bytes.push(b);
+      recurse(len - 1, bytes);
+      bytes.pop();
+    });
+  }
+}
+for (let len = 0; len <= 4; ++len) {
+  recurse(len, []);
+}
+
 // UCS-2
 test('ucs2', Buffer.from('ababc', 'ucs2'), 'ababc');
 
